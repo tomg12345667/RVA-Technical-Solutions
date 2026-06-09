@@ -127,7 +127,7 @@ async function createTicketChannel(guild, opener, { type = "line", fields = {}, 
   ];
 
   const channelOptions = {
-    name: `📱new-line-${opener.username}`,
+    name: type === "line" ? `📱new-line-${opener.username}` : `🎟️general-support-${opener.username}`,
     type: ChannelType.GuildText,
     permissionOverwrites,
     topic: `Ticket #${ticketNumber} | ${opener.tag} | Type: ${type}`,

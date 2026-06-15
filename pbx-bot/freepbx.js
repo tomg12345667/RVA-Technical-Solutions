@@ -1,4 +1,5 @@
 const { execFile } = require("child_process");
+const crypto = require("crypto");
 
 class FreepbxManager {
   constructor(pool) {
@@ -24,28 +25,36 @@ class FreepbxManager {
   }
 
   async getNextAvailableExtension() {
-    const rows = await this.query("SELECT id FROM devices WHERE tech = 'pjsip' ORDER BY id ASC");
-    const start = parseInt(process.env.START_EXT) || 1000;
-    const existing = new Set(rows.map(r => parseInt(r.id)));
-    let next = start;
-    while (existing.has(next)) next++;
-    return next;
+    const rows = await this.query("SELECT id FROM devices WHERE tech = 'pjsip' ORDER BY CAST(id AS UNSIGNED) ASC");
+    const startExt = process.env.START_EXT ? parseInt(process.env.START_EXT, 10) : 1000;
+    const existingExtsSet = new Set(rows.map(r => parseInt(r.id, 10)));
+    const existingExts = Array.from(existingExtsSet).sort((a, b) => a - b);
+    let nextExt = startExt;
+    for (let i = 0; i < existingExts.length; i++) {
+      if (existingExts[i] !== nextExt) break;
+      nextExt++;
+    }
+    return nextExt;
   }
 
   async getExtension(ext) {
     const [device] = await this.query("SELECT * FROM devices WHERE id = ?", [String(ext)]);
     if (!device) return null;
-    const [secret] = await this.query(
+    const [secretRow] = await this.query(
       "SELECT data FROM pjsip WHERE id = ? AND keyword = 'secret'", [String(ext)]
     );
     const [user] = await this.query("SELECT * FROM users WHERE extension = ?", [String(ext)]);
-    return { extension: String(ext), name: user?.name || device.description, secret: secret?.data };
+    return {
+      extension: String(ext),
+      name:      user?.name || device.description,
+      secret:    secretRow?.data,
+    };
   }
 
   async addExtension(ext, name) {
-    ext  = String(ext);
-    name = name.replace(/[^a-zA-Z0-9 ]/g, "");
-    const secret = require("crypto").randomBytes(16).toString("hex");
+    ext    = String(ext);
+    name   = String(name).replace(/[^a-zA-Z0-9\s]/g, "");
+    const secret = crypto.randomBytes(16).toString("hex");
 
     await this.query(
       `INSERT INTO devices (id, tech, dial, devicetype, description, emergency_cid, outboundcid, ringtimer, noanswer, callwaiting, mohclass, category)
@@ -92,6 +101,24 @@ class FreepbxManager {
     await this.query("DELETE FROM devices WHERE id = ?", [ext]);
     await this.query("DELETE FROM pjsip WHERE id = ?", [ext]);
     await this.query("DELETE FROM users WHERE extension = ?", [ext]);
+  }
+
+  async joinPageGroup(ext, pageGroup) {
+    const [lookup] = await this.query(
+      "SELECT * FROM paging_groups WHERE page_number = ? AND ext = ?", [pageGroup, ext]
+    );
+    if (lookup) return false;
+    await this.query("INSERT INTO paging_groups (page_number, ext) VALUES (?, ?)", [pageGroup, ext]);
+    return true;
+  }
+
+  async leavePageGroup(ext, pageGroup) {
+    const [lookup] = await this.query(
+      "SELECT * FROM paging_groups WHERE page_number = ? AND ext = ?", [pageGroup, ext]
+    );
+    if (!lookup) return false;
+    await this.query("DELETE FROM paging_groups WHERE page_number = ? AND ext = ?", [pageGroup, ext]);
+    return true;
   }
 }
 

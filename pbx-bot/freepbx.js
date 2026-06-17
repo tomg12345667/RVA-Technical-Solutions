@@ -17,7 +17,7 @@ class FreepbxManager {
 
   reload() {
     return new Promise((resolve, reject) => {
-      execFile("/usr/sbin/fwconsole", ["reload", "--quiet"], (err, _out, stderr) => {
+      execFile("sudo", ["/usr/sbin/fwconsole", "reload", "--quiet"], (err, _out, stderr) => {
         if (err) return reject(new Error(stderr || err.message));
         resolve();
       });

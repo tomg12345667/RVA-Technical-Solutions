@@ -52,14 +52,14 @@ class FreepbxManager {
   }
 
   async addExtension(ext, name) {
-    ext    = String(ext);
-    name   = String(name).replace(/[^a-zA-Z0-9\s]/g, "");
+    ext  = String(ext);
+    name = String(name).replace(/[^a-zA-Z0-9\s]/g, "");
     const secret = crypto.randomBytes(16).toString("hex");
 
     await this.query(
-      `INSERT INTO devices (id, tech, dial, devicetype, description, emergency_cid, outboundcid, ringtimer, noanswer, callwaiting, mohclass, category)
-       VALUES (?, 'pjsip', ?, 'fixed', ?, '', '', 0, '', 'enabled', 'default', 'following')`,
-      [ext, `PJSIP/${ext}`, name]
+      `INSERT INTO devices (id, tech, dial, devicetype, user, description, emergency_cid)
+       VALUES (?, 'pjsip', ?, 'fixed', ?, ?, '')`,
+      [ext, `PJSIP/${ext}`, ext, name]
     );
 
     const pjsipFields = [
@@ -81,8 +81,8 @@ class FreepbxManager {
     }
 
     await this.query(
-      `INSERT INTO users (extension, name, voicemail, ringtimer, noanswer, callwaiting, mohclass, outboundcid)
-       VALUES (?, ?, 'novm', 0, '', 'enabled', 'default', '')`,
+      `INSERT INTO users (extension, name, voicemail, ringtimer, noanswer, outboundcid, mohclass, noanswer_cid, busy_cid, chanunavail_cid, noanswer_dest, busy_dest, chanunavail_dest)
+       VALUES (?, ?, 'novm', 0, '', '', 'default', '', '', '', '', '', '')`,
       [ext, name]
     );
 
